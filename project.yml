@@ -1,0 +1,39 @@
+name: MemReleaser
+
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    MACOSX_DEPLOYMENT_TARGET: 14.0
+    PRODUCT_BUNDLE_IDENTIFIER: com.maki.MemReleaser
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  MemReleaser:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Sources/MemReleaser
+    settings:
+      base:
+        PRODUCT_NAME: MemReleaser
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: MemReleaser
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_LSUIElement: YES
+    scheme:
+      testTargets:
+        - MemReleaserTests
+
+  MemReleaserTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tests/MemReleaserTests
+    dependencies:
+      - target: MemReleaser
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
