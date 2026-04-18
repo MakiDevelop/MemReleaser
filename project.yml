@@ -15,6 +15,7 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: Sources/MemReleaser
+      - path: Resources
     settings:
       base:
         PRODUCT_NAME: MemReleaser
