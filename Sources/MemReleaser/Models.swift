@@ -130,6 +130,7 @@ struct AppMemoryUsage: Identifiable, Sendable {
 
     var id: String { key }
     var key: String
+    var stableIdentifier: String
     var displayName: String
     var residentBytes: UInt64
     var processCount: Int
@@ -157,6 +158,34 @@ struct MonitorSample: Sendable {
     var snapshot: MemorySnapshot
     var apps: [AppMemoryUsage]
     var suggestions: [AppSuggestion]
+}
+
+struct MemoryTrendSample: Identifiable, Sendable {
+    var id: Date { timestamp }
+    var timestamp: Date
+    var availableBytes: UInt64
+    var swapUsedBytes: UInt64
+    var compressedBytes: UInt64
+    var level: MemoryPressureLevel
+}
+
+struct AppMemoryPoint: Sendable {
+    var timestamp: Date
+    var residentBytes: UInt64
+}
+
+struct AppGrowthInsight: Identifiable, Sendable {
+    var id: String { stableIdentifier }
+    var stableIdentifier: String
+    var displayName: String
+    var workloadKind: WorkloadKind
+    var currentBytes: UInt64
+    var deltaBytes: Int64
+    var windowMinutes: Int
+
+    var deltaIsPositive: Bool {
+        deltaBytes > 0
+    }
 }
 
 struct LaunchAtLoginState: Sendable {

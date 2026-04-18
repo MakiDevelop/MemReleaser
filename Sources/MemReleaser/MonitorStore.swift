@@ -16,6 +16,8 @@ final class MonitorStore {
     var statusMessage = "初始化中…"
     var ignoredKeys: Set<String> = []
     var launchAtLoginState = LaunchAtLoginState.unavailable
+    var history: [MemoryTrendSample] = []
+    var growthInsights: [AppGrowthInsight] = []
 
     private var recentActivity: [String: Date] = [:]
     private var refreshTask: Task<Void, Never>?
@@ -23,11 +25,14 @@ final class MonitorStore {
     private var lastNotifiedLevel: MemoryPressureLevel?
     private let autoReleaseMinimumIdleMinutes: TimeInterval = 30
     private var activationObserver: NSObjectProtocol?
+    private var appMemoryHistory: [String: [AppMemoryPoint]] = [:]
+    private let maxHistorySamples = 360
+    private let growthWindow: TimeInterval = 15 * 60
 
     init() {
         notificationsEnabled = UserDefaults.standard.bool(forKey: Keys.notificationsEnabled)
         autoReleaseOnCritical = UserDefaults.standard.bool(forKey: Keys.autoReleaseOnCritical)
-        ignoredKeys = Set(UserDefaults.standard.stringArray(forKey: Keys.ignoredAppKeys) ?? [])
+        ignoredKeys = Set(UserDefaults.standard.stringArray(forKey: Keys.ignoredAppIdentifiers) ?? [])
         refreshLaunchAtLoginState()
         seedCurrentFrontmostApp()
         observeAppActivations()
@@ -66,11 +71,15 @@ final class MonitorStore {
                     snapshot: snapshot,
                     ignoredKeys: ignoredKeys
                 )
+                let history = updatedHistory(with: snapshot)
+                let growthInsights = updatedGrowthInsights(with: apps)
 
                 await MainActor.run {
                     self.snapshot = snapshot
                     self.apps = apps
                     self.suggestions = suggestions
+                    self.history = history
+                    self.growthInsights = growthInsights
                     self.statusMessage = snapshot.level.subtitle
                     self.isRefreshing = false
                 }
@@ -137,19 +146,19 @@ final class MonitorStore {
     }
 
     func isIgnored(_ app: AppMemoryUsage) -> Bool {
-        ignoredKeys.contains(app.key)
+        ignoredKeys.contains(app.stableIdentifier)
     }
 
     func toggleIgnore(_ app: AppMemoryUsage) {
-        if ignoredKeys.contains(app.key) {
-            ignoredKeys.remove(app.key)
+        if ignoredKeys.contains(app.stableIdentifier) {
+            ignoredKeys.remove(app.stableIdentifier)
             statusMessage = "已取消忽略 \(app.displayName)"
         } else {
-            ignoredKeys.insert(app.key)
+            ignoredKeys.insert(app.stableIdentifier)
             statusMessage = "之後不再把 \(app.displayName) 排進建議清單"
         }
 
-        UserDefaults.standard.set(Array(ignoredKeys).sorted(), forKey: Keys.ignoredAppKeys)
+        UserDefaults.standard.set(Array(ignoredKeys).sorted(), forKey: Keys.ignoredAppIdentifiers)
         suggestions = SuggestionEngine.suggestions(for: apps, snapshot: snapshot, ignoredKeys: ignoredKeys)
     }
 
@@ -264,9 +273,68 @@ final class MonitorStore {
         return "Swap \(swap)。優先考慮：\(topNames)。"
     }
 
+    private func updatedHistory(with snapshot: MemorySnapshot) -> [MemoryTrendSample] {
+        var next = history
+        next.append(
+            MemoryTrendSample(
+                timestamp: snapshot.sampledAt,
+                availableBytes: snapshot.availableBytes,
+                swapUsedBytes: snapshot.swapUsedBytes,
+                compressedBytes: snapshot.compressedBytes,
+                level: snapshot.level
+            )
+        )
+
+        if next.count > maxHistorySamples {
+            next.removeFirst(next.count - maxHistorySamples)
+        }
+        return next
+    }
+
+    private func updatedGrowthInsights(with apps: [AppMemoryUsage]) -> [AppGrowthInsight] {
+        let now = Date()
+        let cutoff = now.addingTimeInterval(-growthWindow)
+        var nextHistory: [String: [AppMemoryPoint]] = [:]
+
+        for app in apps {
+            var points = appMemoryHistory[app.stableIdentifier] ?? []
+            points.append(AppMemoryPoint(timestamp: now, residentBytes: app.residentBytes))
+            points = points.filter { $0.timestamp >= cutoff }
+            nextHistory[app.stableIdentifier] = points
+        }
+
+        appMemoryHistory = nextHistory
+
+        return apps.compactMap { app in
+            guard let points = nextHistory[app.stableIdentifier], let first = points.first else {
+                return nil
+            }
+
+            let delta = Int64(app.residentBytes) - Int64(first.residentBytes)
+            let windowMinutes = max(1, Int(now.timeIntervalSince(first.timestamp) / 60))
+            guard windowMinutes >= 5 else { return nil }
+            guard delta >= 512 * 1_024 * 1_024 else { return nil }
+            guard app.residentBytes >= 1_024 * 1_024 * 1_024 else { return nil }
+
+            return AppGrowthInsight(
+                stableIdentifier: app.stableIdentifier,
+                displayName: app.displayName,
+                workloadKind: app.workloadKind,
+                currentBytes: app.residentBytes,
+                deltaBytes: delta,
+                windowMinutes: windowMinutes
+            )
+        }
+        .sorted { lhs, rhs in
+            lhs.deltaBytes > rhs.deltaBytes
+        }
+        .prefix(5)
+        .map { $0 }
+    }
+
     private enum Keys {
         static let notificationsEnabled = "notificationsEnabled"
         static let autoReleaseOnCritical = "autoReleaseOnCritical"
-        static let ignoredAppKeys = "ignoredAppKeys"
+        static let ignoredAppIdentifiers = "ignoredAppIdentifiers"
     }
 }

@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 struct ContentView: View {
@@ -9,6 +10,8 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     HeroCard(store: store)
                     MetricGrid(snapshot: store.snapshot)
+                    HistoryCard(store: store)
+                    GrowthInsightsCard(store: store)
                     ControlsCard(store: store)
                     SuggestionsCard(store: store)
                     ProcessTable(store: store)
@@ -119,6 +122,124 @@ private struct MetricTile: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct HistoryCard: View {
+    @Bindable var store: MonitorStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("最近 30 分鐘")
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Text("可用 / Swap 趨勢")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if store.history.count < 2 {
+                Text("累積中…先讓它跑一會，這裡會出現歷史曲線。")
+                    .foregroundStyle(.secondary)
+            } else {
+                Chart {
+                    ForEach(store.history) { sample in
+                        LineMark(
+                            x: .value("時間", sample.timestamp),
+                            y: .value("Available", gigabytes(sample.availableBytes))
+                        )
+                        .foregroundStyle(.green)
+                        .interpolationMethod(.catmullRom)
+                    }
+
+                    ForEach(store.history) { sample in
+                        LineMark(
+                            x: .value("時間", sample.timestamp),
+                            y: .value("Swap", gigabytes(sample.swapUsedBytes))
+                        )
+                        .foregroundStyle(.orange)
+                        .interpolationMethod(.catmullRom)
+                    }
+
+                    RuleMark(y: .value("Warning", gigabytes(UInt64(Double(store.snapshot.physicalMemory) * 0.16))))
+                        .foregroundStyle(.yellow.opacity(0.45))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+
+                    RuleMark(y: .value("Critical", gigabytes(UInt64(Double(store.snapshot.physicalMemory) * 0.08))))
+                        .foregroundStyle(.red.opacity(0.45))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading)
+                }
+                .chartLegend(.hidden)
+                .frame(height: 220)
+
+                HStack(spacing: 16) {
+                    LegendPill(color: .green, title: "可用 \(Formatters.shortBytes(store.snapshot.availableBytes))")
+                    LegendPill(color: .orange, title: "Swap \(Formatters.shortBytes(store.snapshot.swapUsedBytes))")
+                    LegendPill(color: .yellow, title: "Warning 線")
+                    LegendPill(color: .red, title: "Critical 線")
+                }
+                .font(.caption)
+            }
+        }
+        .padding(18)
+        .background(.quaternary.opacity(0.22), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private func gigabytes(_ bytes: UInt64) -> Double {
+        Double(bytes) / 1_073_741_824
+    }
+}
+
+private struct LegendPill: View {
+    let color: Color
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(title)
+        }
+    }
+}
+
+private struct GrowthInsightsCard: View {
+    @Bindable var store: MonitorStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("最近 15 分鐘暴增中的 app")
+                .font(.title3.weight(.semibold))
+
+            if store.growthInsights.isEmpty {
+                Text("目前沒有明顯暴增中的 app。這很重要，代表問題比較像高基線常駐，不是單一 leak 正在噴。")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(store.growthInsights) { insight in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(insight.displayName)
+                                .font(.headline)
+                            Text("\(insight.workloadKind.label) · \(insight.windowMinutes) 分鐘內增加 \(Formatters.shortBytes(UInt64(max(0, insight.deltaBytes))))")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text("現在 \(Formatters.shortBytes(insight.currentBytes))")
+                            .font(.headline.monospacedDigit())
+                    }
+                    .padding(14)
+                    .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+            }
+        }
+        .padding(18)
+        .background(.quaternary.opacity(0.22), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 
@@ -290,11 +411,11 @@ private struct ProcessTable: View {
         if app.isFrontmost {
             return "前台"
         }
-        if app.isHidden {
-            return "隱藏"
-        }
         if store.isIgnored(app) {
             return "已忽略"
+        }
+        if app.isHidden {
+            return "隱藏"
         }
         if app.category == .commandLine {
             return "CLI"

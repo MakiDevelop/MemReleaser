@@ -7,7 +7,7 @@ enum SuggestionEngine {
         ignoredKeys: Set<String> = []
     ) -> [AppSuggestion] {
         apps
-            .filter { !ignoredKeys.contains($0.key) }
+            .filter { !ignoredKeys.contains($0.stableIdentifier) }
             .compactMap { app in
                 let suggestion = buildSuggestion(for: app, snapshot: snapshot)
                 return suggestion.score > 0 ? suggestion : nil

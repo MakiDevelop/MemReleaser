@@ -8,9 +8,18 @@ It does three things:
 2. Aggregates multi-process apps like Chrome or Brave at the `.app` level.
 3. Recommends which idle heavyweight apps to quit first, with optional notifications and critical auto-release.
 
+It also keeps a short rolling history so you can tell whether a bad moment is a transient spike, a high baseline, or an app that is actively ballooning.
+
 ## What it does not do
 
 It does not pretend to "clean RAM" globally. On macOS, the useful action is usually to reduce the working set by quitting or suspending heavyweight apps, browser profiles, VMs, containers, or idle developer tools.
+
+## Reliability-focused features
+
+- 30-minute in-app trend chart for available memory and swap.
+- 15-minute growth detector for apps that are actively ballooning.
+- Persistent ignore rules keyed by stable app identity, preferring bundle identifier over transient process paths.
+- Launch at Login settings backed by `SMAppService.mainApp`.
 
 ## Local development
 
@@ -30,7 +39,7 @@ xcodegen generate
 open MemReleaser.xcodeproj
 ```
 
-The generated project sets `LSUIElement=YES`, so the app behaves like a menu bar utility without a Dock icon.
+The generated project sets `LSUIElement=YES`, so the app behaves like a menu bar utility without a Dock icon. The generated `.xcodeproj` is intentionally ignored from git; `project.yml` is the checked-in source of truth.
 
 ## Launch at Login
 

@@ -49,6 +49,7 @@ enum ProcessScanner {
 
             return AppMemoryUsage(
                 key: key,
+                stableIdentifier: descriptor?.bundleIdentifier ?? descriptor?.bundlePath ?? key,
                 displayName: displayName,
                 residentBytes: aggregate.totalResident,
                 processCount: aggregate.processCount,

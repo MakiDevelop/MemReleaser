@@ -39,6 +39,7 @@ func hiddenIdleAppsAreRankedAheadOfFrontmostApps() {
 
     let hiddenApp = AppMemoryUsage(
         key: "chrome",
+        stableIdentifier: "com.google.Chrome",
         displayName: "Chrome",
         residentBytes: 8 * 1_024 * 1_024 * 1_024,
         processCount: 12,
@@ -56,6 +57,7 @@ func hiddenIdleAppsAreRankedAheadOfFrontmostApps() {
 
     let frontmostApp = AppMemoryUsage(
         key: "xcode",
+        stableIdentifier: "com.apple.dt.Xcode",
         displayName: "Xcode",
         residentBytes: 9 * 1_024 * 1_024 * 1_024,
         processCount: 6,
@@ -94,6 +96,7 @@ func ignoredAppsDoNotAppearInSuggestions() {
 
     let app = AppMemoryUsage(
         key: "brave",
+        stableIdentifier: "com.brave.Browser",
         displayName: "Brave",
         residentBytes: 5 * 1_024 * 1_024 * 1_024,
         processCount: 10,
@@ -109,6 +112,6 @@ func ignoredAppsDoNotAppearInSuggestions() {
         isSystemCritical: false
     )
 
-    let suggestions = SuggestionEngine.suggestions(for: [app], snapshot: snapshot, ignoredKeys: ["brave"])
+    let suggestions = SuggestionEngine.suggestions(for: [app], snapshot: snapshot, ignoredKeys: ["com.brave.Browser"])
     #expect(suggestions.isEmpty)
 }
