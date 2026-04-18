@@ -227,6 +227,10 @@ enum ProcessScanner {
         guard result == size else { return nil }
         return UInt64(info.ptinfo.pti_resident_size)
     }
+
+    static func residentBytesForProcess(_ pid: Int32) -> UInt64? {
+        residentBytes(for: pid)
+    }
 }
 
 private extension RunningAppDescriptor {

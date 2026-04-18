@@ -20,6 +20,8 @@ It does not pretend to "clean RAM" globally. On macOS, the useful action is usua
 - 15-minute growth detector for apps that are actively ballooning.
 - Persistent ignore rules keyed by stable app identity, preferring bundle identifier over transient process paths.
 - Launch at Login settings backed by `SMAppService.mainApp`.
+- Notification throttling so repeated warning states do not become alert spam.
+- JSON diagnostics export for debugging long-running burn-in sessions.
 
 ## Local development
 

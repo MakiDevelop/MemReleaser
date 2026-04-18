@@ -260,6 +260,16 @@ private struct ControlsCard: View {
             ))
             .toggleStyle(.switch)
 
+            HStack {
+                Text("MemReleaser 自身占用：\(Formatters.shortBytes(store.selfResidentBytes))")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(notificationDetail)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Divider()
 
             HStack {
@@ -291,6 +301,11 @@ private struct ControlsCard: View {
                 }
                 .buttonStyle(.borderedProminent)
 
+                Button("匯出診斷 JSON") {
+                    store.exportDiagnostics()
+                }
+                .buttonStyle(.bordered)
+
                 Text("只會對可安全結束的 app 發送正常 terminate，不做強殺。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -298,6 +313,13 @@ private struct ControlsCard: View {
         }
         .padding(18)
         .background(.quaternary.opacity(0.22), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var notificationDetail: String {
+        if let lastSentAt = store.lastNotificationSentAt {
+            return "上次通知：\(Formatters.minutesSince(lastSentAt))"
+        }
+        return "通知尚未觸發"
     }
 }
 

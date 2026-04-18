@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 import UserNotifications
 
 @MainActor
@@ -18,6 +19,8 @@ final class MonitorStore {
     var launchAtLoginState = LaunchAtLoginState.unavailable
     var history: [MemoryTrendSample] = []
     var growthInsights: [AppGrowthInsight] = []
+    var selfResidentBytes: UInt64 = 0
+    var lastNotificationSentAt: Date?
 
     private var recentActivity: [String: Date] = [:]
     private var refreshTask: Task<Void, Never>?
@@ -73,6 +76,7 @@ final class MonitorStore {
                 )
                 let history = updatedHistory(with: snapshot)
                 let growthInsights = updatedGrowthInsights(with: apps)
+                let selfResidentBytes = ProcessScanner.residentBytesForProcess(currentPID) ?? 0
 
                 await MainActor.run {
                     self.snapshot = snapshot
@@ -80,6 +84,7 @@ final class MonitorStore {
                     self.suggestions = suggestions
                     self.history = history
                     self.growthInsights = growthInsights
+                    self.selfResidentBytes = selfResidentBytes
                     self.statusMessage = snapshot.level.subtitle
                     self.isRefreshing = false
                 }
@@ -143,6 +148,72 @@ final class MonitorStore {
 
     func openLoginItemsSettings() {
         LaunchAtLoginController.openSystemSettings()
+    }
+
+    func exportDiagnostics() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "MemReleaser-diagnostics-\(exportFilenameTimestamp()).json"
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            statusMessage = "已取消匯出診斷。"
+            return
+        }
+
+        let report = DiagnosticReport(
+            exportedAt: .now,
+            snapshot: .init(
+                sampledAt: snapshot.sampledAt,
+                level: snapshot.level.rawValue,
+                physicalMemoryBytes: snapshot.physicalMemory,
+                usedBytes: snapshot.usedBytes,
+                availableBytes: snapshot.availableBytes,
+                compressedBytes: snapshot.compressedBytes,
+                swapUsedBytes: snapshot.swapUsedBytes,
+                selfResidentBytes: selfResidentBytes
+            ),
+            launchAtLoginTitle: launchAtLoginState.title,
+            ignoredAppIdentifiers: Array(ignoredKeys).sorted(),
+            suggestions: suggestions.map {
+                .init(
+                    displayName: $0.app.displayName,
+                    stableIdentifier: $0.app.stableIdentifier,
+                    residentBytes: $0.app.residentBytes,
+                    workloadKind: $0.app.workloadKind.rawValue,
+                    recommendation: $0.recommendation
+                )
+            },
+            growthApps: growthInsights.map {
+                .init(
+                    displayName: $0.displayName,
+                    stableIdentifier: $0.stableIdentifier,
+                    currentBytes: $0.currentBytes,
+                    deltaBytes: $0.deltaBytes,
+                    windowMinutes: $0.windowMinutes
+                )
+            },
+            trend: history.map {
+                .init(
+                    timestamp: $0.timestamp,
+                    availableBytes: $0.availableBytes,
+                    swapUsedBytes: $0.swapUsedBytes,
+                    compressedBytes: $0.compressedBytes,
+                    level: $0.level.rawValue
+                )
+            }
+        )
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(report)
+            try data.write(to: url, options: .atomic)
+            statusMessage = "已匯出診斷到 \(url.lastPathComponent)"
+        } catch {
+            lastError = "匯出診斷失敗：\(error.localizedDescription)"
+        }
     }
 
     func isIgnored(_ app: AppMemoryUsage) -> Bool {
@@ -245,10 +316,22 @@ final class MonitorStore {
     }
 
     private func notifyIfNeeded(for snapshot: MemorySnapshot, suggestions: [AppSuggestion]) async {
-        guard lastNotifiedLevel != snapshot.level else { return }
-        lastNotifiedLevel = snapshot.level
+        let now = Date()
+        if snapshot.level == .healthy {
+            lastNotifiedLevel = .healthy
+            return
+        }
 
-        guard snapshot.level != .healthy else { return }
+        guard NotificationPolicy.shouldNotify(
+            previousLevel: lastNotifiedLevel,
+            lastSentAt: lastNotificationSentAt,
+            newLevel: snapshot.level,
+            now: now
+        ) else {
+            return
+        }
+        lastNotifiedLevel = snapshot.level
+        lastNotificationSentAt = now
 
         let content = UNMutableNotificationContent()
         content.title = snapshot.level == .critical ? "MemReleaser：記憶體接近卡死" : "MemReleaser：記憶體壓力上升"
@@ -330,6 +413,12 @@ final class MonitorStore {
         }
         .prefix(5)
         .map { $0 }
+    }
+
+    private func exportFilenameTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter.string(from: .now)
     }
 
     private enum Keys {

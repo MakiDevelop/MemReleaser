@@ -115,3 +115,35 @@ func ignoredAppsDoNotAppearInSuggestions() {
     let suggestions = SuggestionEngine.suggestions(for: [app], snapshot: snapshot, ignoredKeys: ["com.brave.Browser"])
     #expect(suggestions.isEmpty)
 }
+
+@Test
+func notificationPolicyThrottlesRepeatedWarning() {
+    let now = Date()
+
+    #expect(
+        NotificationPolicy.shouldNotify(
+            previousLevel: .warning,
+            lastSentAt: now.addingTimeInterval(-(10 * 60)),
+            newLevel: .warning,
+            now: now
+        ) == false
+    )
+
+    #expect(
+        NotificationPolicy.shouldNotify(
+            previousLevel: .warning,
+            lastSentAt: now.addingTimeInterval(-(31 * 60)),
+            newLevel: .warning,
+            now: now
+        ) == true
+    )
+
+    #expect(
+        NotificationPolicy.shouldNotify(
+            previousLevel: .warning,
+            lastSentAt: now.addingTimeInterval(-(2 * 60)),
+            newLevel: .critical,
+            now: now
+        ) == true
+    )
+}

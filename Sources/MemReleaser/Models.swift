@@ -188,6 +188,80 @@ struct AppGrowthInsight: Identifiable, Sendable {
     }
 }
 
+enum NotificationPolicy {
+    static func shouldNotify(
+        previousLevel: MemoryPressureLevel?,
+        lastSentAt: Date?,
+        newLevel: MemoryPressureLevel,
+        now: Date = .now
+    ) -> Bool {
+        guard newLevel != .healthy else { return false }
+
+        if previousLevel != newLevel {
+            return true
+        }
+
+        guard let lastSentAt else { return true }
+        let cooldown: TimeInterval
+
+        switch newLevel {
+        case .warning:
+            cooldown = 30 * 60
+        case .critical:
+            cooldown = 10 * 60
+        case .healthy:
+            cooldown = .infinity
+        }
+
+        return now.timeIntervalSince(lastSentAt) >= cooldown
+    }
+}
+
+struct DiagnosticReport: Codable, Sendable {
+    struct Snapshot: Codable, Sendable {
+        var sampledAt: Date
+        var level: String
+        var physicalMemoryBytes: UInt64
+        var usedBytes: UInt64
+        var availableBytes: UInt64
+        var compressedBytes: UInt64
+        var swapUsedBytes: UInt64
+        var selfResidentBytes: UInt64
+    }
+
+    struct SuggestedApp: Codable, Sendable {
+        var displayName: String
+        var stableIdentifier: String
+        var residentBytes: UInt64
+        var workloadKind: String
+        var recommendation: String
+    }
+
+    struct GrowthApp: Codable, Sendable {
+        var displayName: String
+        var stableIdentifier: String
+        var currentBytes: UInt64
+        var deltaBytes: Int64
+        var windowMinutes: Int
+    }
+
+    struct TrendPoint: Codable, Sendable {
+        var timestamp: Date
+        var availableBytes: UInt64
+        var swapUsedBytes: UInt64
+        var compressedBytes: UInt64
+        var level: String
+    }
+
+    var exportedAt: Date
+    var snapshot: Snapshot
+    var launchAtLoginTitle: String
+    var ignoredAppIdentifiers: [String]
+    var suggestions: [SuggestedApp]
+    var growthApps: [GrowthApp]
+    var trend: [TrendPoint]
+}
+
 struct LaunchAtLoginState: Sendable {
     var isEnabled: Bool
     var isSupportedInCurrentBuild: Bool
