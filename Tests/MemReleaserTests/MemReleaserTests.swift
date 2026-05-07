@@ -49,6 +49,30 @@ func criticalPressureIsTriggeredByLowAvailability() {
 }
 
 @Test
+func highCompressionWithEnoughAvailableMemoryIsNotCritical() {
+    let level = SystemMemoryReader.evaluateLevel(
+        physicalMemory: 48 * 1_024 * 1_024 * 1_024,
+        availableBytes: UInt64(13.15 * 1_024 * 1_024 * 1_024),
+        compressedBytes: UInt64(9.13 * 1_024 * 1_024 * 1_024),
+        swapUsedBytes: 0
+    )
+
+    #expect(level == .healthy)
+}
+
+@Test
+func highCompressionBecomesCriticalWhenAvailableMemoryIsAlsoLow() {
+    let level = SystemMemoryReader.evaluateLevel(
+        physicalMemory: 48 * 1_024 * 1_024 * 1_024,
+        availableBytes: 7 * 1_024 * 1_024 * 1_024,
+        compressedBytes: 9 * 1_024 * 1_024 * 1_024,
+        swapUsedBytes: 0
+    )
+
+    #expect(level == .critical)
+}
+
+@Test
 func hiddenIdleAppsAreRankedAheadOfFrontmostApps() {
     let now = Date()
     let snapshot = MemorySnapshot(

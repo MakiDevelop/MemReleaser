@@ -85,11 +85,19 @@ enum SystemMemoryReader {
         guard physicalMemory > 0 else { return .healthy }
         let availableRatio = Double(availableBytes) / Double(physicalMemory)
         let compressedRatio = Double(compressedBytes) / Double(physicalMemory)
+        let twoGiB: UInt64 = 2 * 1_024 * 1_024 * 1_024
+        let eightGiB: UInt64 = 8 * 1_024 * 1_024 * 1_024
 
-        if availableRatio < 0.08 || compressedRatio > 0.18 || swapUsedBytes > 8 * 1_024 * 1_024 * 1_024 {
+        if availableRatio < 0.08 || swapUsedBytes > eightGiB {
             return .critical
         }
-        if availableRatio < 0.16 || compressedRatio > 0.10 || swapUsedBytes > 2 * 1_024 * 1_024 * 1_024 {
+        if availableRatio < 0.16 && compressedRatio > 0.18 {
+            return .critical
+        }
+        if availableRatio < 0.16 || swapUsedBytes > twoGiB {
+            return .warning
+        }
+        if availableRatio < 0.25 && compressedRatio > 0.18 {
             return .warning
         }
         return .healthy
