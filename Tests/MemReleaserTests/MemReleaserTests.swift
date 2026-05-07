@@ -1,6 +1,34 @@
 import Foundation
+import Darwin
 import Testing
 @testable import MemReleaser
+
+@Test
+func memorySnapshotUsesActivityMonitorStyleBuckets() {
+    var statistics = vm_statistics64()
+    statistics.free_count = 1
+    statistics.speculative_count = 2
+    statistics.internal_page_count = 10
+    statistics.external_page_count = 20
+    statistics.purgeable_count = 3
+    statistics.wire_count = 4
+    statistics.compressor_page_count = 5
+
+    let snapshot = SystemMemoryReader.makeSnapshot(
+        statistics: statistics,
+        pageSize: 1_024,
+        physicalMemory: 128 * 1_024,
+        swapUsedBytes: 7 * 1_024,
+        sampledAt: Date(timeIntervalSince1970: 0)
+    )
+
+    #expect(snapshot.appMemoryBytes == 10 * 1_024)
+    #expect(snapshot.wiredBytes == 4 * 1_024)
+    #expect(snapshot.compressedBytes == 5 * 1_024)
+    #expect(snapshot.usedBytes == 19 * 1_024)
+    #expect(snapshot.cachedBytes == 23 * 1_024)
+    #expect(snapshot.availableBytes == 26 * 1_024)
+}
 
 @Test
 func groupKeyAggregatesAppHelpersIntoOneApp() {

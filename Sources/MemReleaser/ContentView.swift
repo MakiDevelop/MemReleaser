@@ -97,10 +97,10 @@ private struct MetricGrid: View {
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
             MetricTile(title: "實體 RAM", value: Formatters.bytes(snapshot.physicalMemory), systemImage: "memorychip")
-            MetricTile(title: "已使用", value: Formatters.bytes(snapshot.usedBytes), systemImage: "speedometer")
+            MetricTile(title: "Memory Used", value: Formatters.bytes(snapshot.usedBytes), systemImage: "speedometer")
             MetricTile(title: "壓縮記憶體", value: Formatters.bytes(snapshot.compressedBytes), systemImage: "shippingbox")
-            MetricTile(title: "App + Wired", value: Formatters.bytes(snapshot.appMemoryBytes), systemImage: "square.stack.3d.up")
-            MetricTile(title: "快取 / Inactive", value: Formatters.bytes(snapshot.cachedBytes), systemImage: "internaldrive")
+            MetricTile(title: "App Memory", value: Formatters.bytes(snapshot.appMemoryBytes), systemImage: "square.stack.3d.up")
+            MetricTile(title: "Cached Files", value: Formatters.bytes(snapshot.cachedBytes), systemImage: "internaldrive")
             MetricTile(title: "最後採樣", value: snapshot.sampledAt.formatted(date: .omitted, time: .standard), systemImage: "clock")
         }
     }
@@ -456,7 +456,7 @@ private struct NotesCard: View {
                 .font(.title3.weight(.semibold))
             Text("1. macOS 沒有官方且可靠的『幫別的 app 釋放 RAM』API。真正有效的手段是：提前提醒、縮小工作集、請高佔用 app 正常退出。")
             Text("2. `purge` 類工具主要是清快取，不是根治；如果根因是瀏覽器多分頁、虛擬機、Docker、Xcode DerivedData、瀏覽器擴充套件或記憶體 leak，升到 128GB 也只是把爆點往後延。")
-            Text("3. 這版把 Chrome / Brave 這類多進程 app 以整個 `.app` 聚合後再評估，避免只看到單一 helper。")
+            Text("3. 這版把 Chrome / Brave 這類多進程 app 以整個 `.app` 聚合後再評估，並以 footprint 而非純 RSS 排名，口徑更接近 Activity Monitor。")
         }
         .font(.subheadline)
         .foregroundStyle(.secondary)

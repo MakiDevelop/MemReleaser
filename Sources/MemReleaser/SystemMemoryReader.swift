@@ -26,23 +26,37 @@ enum SystemMemoryReader {
             throw ReaderError.hostStatistics
         }
 
+        return makeSnapshot(
+            statistics: statistics,
+            pageSize: pageSize,
+            physicalMemory: ProcessInfo.processInfo.physicalMemory,
+            swapUsedBytes: readSwapUsage(),
+            sampledAt: .now
+        )
+    }
+
+    static func makeSnapshot(
+        statistics: vm_statistics64,
+        pageSize: vm_size_t,
+        physicalMemory: UInt64,
+        swapUsedBytes: UInt64,
+        sampledAt: Date
+    ) -> MemorySnapshot {
         let bytesPerPage = UInt64(pageSize)
         let freeBytes = UInt64(statistics.free_count) * bytesPerPage
-        let activeBytes = UInt64(statistics.active_count) * bytesPerPage
-        let inactiveBytes = UInt64(statistics.inactive_count) * bytesPerPage
         let speculativeBytes = UInt64(statistics.speculative_count) * bytesPerPage
         let wiredBytes = UInt64(statistics.wire_count) * bytesPerPage
         let purgeableBytes = UInt64(statistics.purgeable_count) * bytesPerPage
         let compressedBytes = UInt64(statistics.compressor_page_count) * bytesPerPage
+        let appMemoryBytes = UInt64(statistics.internal_page_count) * bytesPerPage
+        let fileBackedBytes = UInt64(statistics.external_page_count) * bytesPerPage
 
-        let usedBytes = activeBytes + inactiveBytes + wiredBytes + compressedBytes
-        let availableBytes = freeBytes + speculativeBytes + purgeableBytes
-        let cachedBytes = inactiveBytes + speculativeBytes
-        let appMemoryBytes = activeBytes + wiredBytes
-        let physicalMemory = ProcessInfo.processInfo.physicalMemory
-        let swapUsedBytes = readSwapUsage()
+        let unusedBytes = freeBytes + speculativeBytes
+        let cachedBytes = fileBackedBytes + purgeableBytes
+        let usedBytes = appMemoryBytes + wiredBytes + compressedBytes
+        let availableBytes = unusedBytes + cachedBytes
 
-        let snapshot = MemorySnapshot(
+        return MemorySnapshot(
             physicalMemory: physicalMemory,
             usedBytes: min(usedBytes, physicalMemory),
             freeBytes: freeBytes,
@@ -58,10 +72,8 @@ enum SystemMemoryReader {
                 compressedBytes: compressedBytes,
                 swapUsedBytes: swapUsedBytes
             ),
-            sampledAt: .now
+            sampledAt: sampledAt
         )
-
-        return snapshot
     }
 
     static func evaluateLevel(

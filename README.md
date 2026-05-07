@@ -4,8 +4,8 @@ MemReleaser is a macOS menu bar memory guard app for catching pressure before ap
 
 It does three things:
 
-1. Samples system memory, compression, and swap usage.
-2. Aggregates multi-process apps like Chrome or Brave at the `.app` level.
+1. Samples system memory, compression, cached files, and swap usage with Activity Monitor-style buckets.
+2. Aggregates multi-process apps like Chrome or Brave at the `.app` level, using physical footprint when available.
 3. Recommends which idle heavyweight apps to quit first, with optional notifications and critical auto-release.
 
 It also keeps a short rolling history so you can tell whether a bad moment is a transient spike, a high baseline, or an app that is actively ballooning.

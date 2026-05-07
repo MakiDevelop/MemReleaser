@@ -30,7 +30,7 @@ enum ProcessScanner {
 
         for pid in pids where pid > 0 && pid != currentProcessID {
             guard let executablePath = executablePath(for: pid) else { continue }
-            guard let residentBytes = residentBytes(for: pid), residentBytes > 0 else { continue }
+            guard let residentBytes = memoryBytes(for: pid), residentBytes > 0 else { continue }
 
             let key = groupKey(for: executablePath)
             var aggregate = grouped[key, default: Aggregate()]
@@ -217,6 +217,25 @@ enum ProcessScanner {
         return String(decoding: bytes, as: UTF8.self)
     }
 
+    private static func memoryBytes(for pid: Int32) -> UInt64? {
+        if let footprintBytes = physicalFootprintBytes(for: pid), footprintBytes > 0 {
+            return footprintBytes
+        }
+        return residentBytes(for: pid)
+    }
+
+    private static func physicalFootprintBytes(for pid: Int32) -> UInt64? {
+        var info = rusage_info_current()
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { rebound in
+                proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, rebound)
+            }
+        }
+
+        guard result == 0 else { return nil }
+        return info.ri_phys_footprint
+    }
+
     private static func residentBytes(for pid: Int32) -> UInt64? {
         var info = proc_taskallinfo()
         let size = MemoryLayout<proc_taskallinfo>.stride
@@ -229,7 +248,7 @@ enum ProcessScanner {
     }
 
     static func residentBytesForProcess(_ pid: Int32) -> UInt64? {
-        residentBytes(for: pid)
+        memoryBytes(for: pid)
     }
 }
 
